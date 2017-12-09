@@ -1,11 +1,23 @@
-#__precompile__()
+__precompile__()
 
-#module PiezoSerial
+module PiezoSerial
+
 import Base.listen
 import Base.position
 
 using SerialPorts
 using ImagineHardware
+
+export find_piezo_serial,
+        kp, ki, kd, set_kp, set_ki, set_kd,
+        status,
+        runtime_minutes,
+        accepts_mod, mod_on, mod_off,
+        position, set_position,
+        is_open_loop, is_closed_loop, set_closed_loop, set_open_loop,
+        is_notch_on, is_notch_off, notchf, set_notchf, notchb, set_notchb,
+        is_lowpass_on, is_lowpass_off, lowpassf, set_lowpassf,
+        slewrate, set_slewrate
 
 ENTER = "\r\n" #on Windows
 
@@ -120,14 +132,14 @@ function available_commands(piezoport::SerialPort)
 end
 
 function runtime_minutes(piezoport::SerialPort)
-	comstr = "rohm"
+    comstr = "rohm"
     write(piezoport, comstr * ENTER)
     return parse(Int, listen(piezoport; prefix = comstr))
 end
 
 function accepts_mod(piezoport::SerialPort)
-	write(piezoport, "modon" * ENTER)
-	return parse(Bool, first(listen(piezoport; prefix="modon")))
+    write(piezoport, "modon" * ENTER)
+    return parse(Bool, first(listen(piezoport; prefix="modon")))
 end
 mod_on(piezoport::SerialPort) = write(piezoport, "modon,1" * ENTER)
 mod_off(piezoport::SerialPort) = write(piezoport, "modon,0" * ENTER)
@@ -150,7 +162,7 @@ function set_kp(piezoport::SerialPort, val::Float64)
 end
 #Getting isn't mentioned in the manual, but this works to get rather than set the value
 function kp(piezoport::SerialPort)
-	comstr = "kp"
+    comstr = "kp"
     write(piezoport, comstr * ENTER)
     return parse(Float64, listen(piezoport; prefix=comstr))
 end
@@ -160,7 +172,7 @@ function set_ki(piezoport::SerialPort, val::Float64)
     write(piezoport, "ki,$(tval)" * ENTER)
 end
 function ki(piezoport::SerialPort)
-	comstr = "ki"
+    comstr = "ki"
     write(piezoport, comstr * ENTER)
     return parse(Float64, listen(piezoport; prefix=comstr))
 end
@@ -170,7 +182,7 @@ function set_kd(piezoport::SerialPort, val::Float64)
     write(piezoport, "kd,$(tval)" * ENTER)
 end
 function kd(piezoport::SerialPort)
-	comstr = "kd"
+    comstr = "kd"
     write(piezoport, comstr * ENTER)
     return parse(Float64, listen(piezoport; prefix=comstr))
 end
@@ -179,17 +191,114 @@ is_open_loop(piezoport::SerialPort) = status_register(piezoport)[8] == '0'
 is_closed_loop(piezoport::SerialPort) = !is_open_loop(piezoport)
 function set_open_loop(piezoport::SerialPort)
     write(piezoport, "cl,0" * ENTER)
-	sleep(0.1)
-	if !is_open_loop(piezoport)
-		error("Command did not succeed.")
-	end
+    sleep(0.1)
+    if !is_open_loop(piezoport)
+        error("Command did not succeed.")
+    end
 end
 function set_closed_loop(piezoport::SerialPort)
     write(piezoport, "cl,1" * ENTER)
-	sleep(0.1)
-	if !is_closed_loop(piezoport)
-		error("Command did not succeed.")
-	end
+    sleep(0.1)
+    if !is_closed_loop(piezoport)
+        error("Command did not succeed.")
+    end
+end
+
+#NOTE: was on when shipped
+is_notch_off(piezoport::SerialPort) = status_register(piezoport)[13] == '0'
+is_notch_on(piezoport::SerialPort) = !is_notch_off(piezoport)
+
+#NOTE: the value when shipped was 200
+function notchf(piezoport::SerialPort)
+    comstr = "notchf"
+    write(piezoport, comstr * ENTER)
+    return parse(Int, listen(piezoport; prefix=comstr))
+end
+function set_notchf(piezoport::SerialPort, freq::Int) #Hz units
+    @assert freq>=0 && freq <= 20000
+    write(piezoport, "notchf,$(freq)" * ENTER)
+    sleep(0.1)
+    f = notchf(piezoport)
+    if f != freq
+        error("Notch frequency setting failed.  Current value is $f")
+    end
+end
+
+#NOTE: the value when shipped was 100
+function notchb(piezoport::SerialPort)
+    comstr = "notchb"
+    write(piezoport, comstr * ENTER)
+    return parse(Int, listen(piezoport; prefix=comstr))
+end
+function set_notchb(piezoport::SerialPort, bw::Int) #Hz units
+    @assert bw >=0 && bw <= 2 * notchf(piezoport)
+    write(piezoport, "notchb,$(bw)" * ENTER)
+    sleep(0.1)
+    f = notchb(piezoport)
+    if f != bw
+        error("Notch bandwidth setting failed.  Current value is $f")
+    end
+end
+
+#sr set/get slewrate 0.0000002 to 500.0 V/s (applied to MOD)
+function slewrate(piezoport::SerialPort)
+    comstr = "sr"
+    write(piezoport, comstr * ENTER)
+    return parse(Float64, listen(piezoport; prefix=comstr))
+end
+#Note: when shipped by the value was 40.0 V/s, seems a bit low?
+function set_slewrate(piezoport::SerialPort, sr::Float64) #V/s units
+    @assert sr >=0.0000002 && sr<=500.0
+    write(piezoport, "sr,$(sr)" * ENTER)
+    sleep(0.1)
+    s = slewrate(piezoport)
+    if s != sr
+        error("Slewrate setting failed.  Current value is $s")
+    end
+end
+
+#Note: this was off when shipped from the company
+is_lowpass_off(piezoport::SerialPort) = status_register(piezoport)[14] == '0'
+is_lowpass_on(piezoport::SerialPort) = !is_lowpass_off(piezoport)
+
+#lpon set/get (1 on, 0 off)
+function set_lowpass_on(piezoport::SerialPort)
+    if is_lowpass_on(piezoport)
+        warn("Lowpass filter is already on")
+    end
+    write(piezoport, "lpon,1" * ENTER)
+    sleep(0.1)
+    if !is_lowpass_on(piezoport)
+        error("Failed to turn on lowpass filter")
+    end
+end
+
+function set_lowpass_off(piezoport::SerialPort)
+    if is_lowpass_off(piezoport)
+        warn("Lowpass filter is already off")
+    end
+    write(piezoport, "lpon,0" * ENTER)
+    sleep(0.1)
+    if !is_lowpass_off(piezoport)
+        error("Failed to turn off lowpass filter")
+    end
+end
+
+#lpf set/get 0 to 20000
+#NOTE: the value when shipped was 45 (but it was turned off)
+function lowpassf(piezoport::SerialPort)
+    comstr = "lpf"
+    write(piezoport, comstr * ENTER)
+    return parse(Int, listen(piezoport; prefix=comstr))
+end
+function set_lowpassf(piezoport::SerialPort, fnew::Int) #Hz units
+    @assert fnew >=0 && fnew <= 20000
+    write(piezoport, "lpf,$(fnew)" * ENTER)
+    sleep(0.1)
+    f = lowpassf(piezoport)
+    if f != fnew
+        error("Lowpass frequency setting failed.  Current value is $f")
+    end
 end
 
 ########################
@@ -197,29 +306,15 @@ end
 ########################
 
 #sets default values for kp, ki, kd stored in the device
-set_pid_defaults(piezoport::SerialPort) = write(piezoport, "sstd\n")
+set_pid_defaults(piezoport::SerialPort) = write(piezoport, "sstd" * ENTER)
 #Set it back to the way it was shipped to us. (We asked for custom calibration)
 #This may or may not be different from the defaults stored in the controller
 function set_pid_factory(piezoport::SerialPort)
-	set_kp(piezoport, -0.3)
-	set_ki(piezoport, 50.0)
-	set_kd(piezoport, 0.1)
+    set_kp(piezoport, -0.3)
+    set_ki(piezoport, 50.0)
+    set_kd(piezoport, 0.1)
 end
 
-function notchf(piezoport::SerialPort)
-    write(piezoport, "notchf\n")
-    return listen(piezoport)
-end
-function set_notchf(piezoport::SerialPort, freq::Int) #Hz units
-    @assert notchf>=0 && notchf <= 20000
-    write(piezoport, "notchf,$(freq)\n")
-    #todo: verify success
-end
+#TODO: support the function generator commands
 
-#others todo:
-#sr set/get slewrate 0.0000002 to 500.0 V/s (applied to MOD)
-#notchb set/get 0 to max of 2 * notch frequency
-#lpon set/get (0 on, 1 off)
-#lpf set/get 0 to 20000
-
-#end #module
+end #module
