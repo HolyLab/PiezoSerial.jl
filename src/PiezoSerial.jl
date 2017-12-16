@@ -15,7 +15,7 @@ export find_piezo_serial,
         accepts_mod, mod_on, mod_off,
         position, set_position,
         is_open_loop, is_closed_loop, set_closed_loop, set_open_loop,
-        is_notch_on, is_notch_off, notchf, set_notchf, notchb, set_notchb,
+        is_notch_on, is_notch_off, set_notch_on, set_notch_off, notchf, set_notchf, notchb, set_notchb,
         is_lowpass_on, is_lowpass_off, lowpassf, set_lowpassf,
         slewrate, set_slewrate
 
@@ -207,6 +207,22 @@ end
 #NOTE: was on when shipped
 is_notch_off(piezoport::SerialPort) = status_register(piezoport)[13] == '0'
 is_notch_on(piezoport::SerialPort) = !is_notch_off(piezoport)
+
+function set_notch_off(piezoport::SerialPort)
+    write(piezoport, "notchon,0" * ENTER)
+    sleep(0.1)
+    if !is_notch_off(piezoport)
+        error("Command did not succeed.")
+    end
+end
+
+function set_notch_on(piezoport::SerialPort)
+    write(piezoport, "notchon,1" * ENTER)
+    sleep(0.1)
+    if !is_notch_on(piezoport)
+        error("Command did not succeed.")
+    end
+end
 
 #NOTE: the value when shipped was 200
 function notchf(piezoport::SerialPort)
