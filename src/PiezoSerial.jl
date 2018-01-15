@@ -13,6 +13,7 @@ export find_piezo_serial,
         status,
         runtime_minutes,
         accepts_mod, mod_on, mod_off,
+        monsrc, set_monsrc,
         position, set_position,
         is_open_loop, is_closed_loop, set_closed_loop, set_open_loop,
         is_notch_on, is_notch_off, set_notch_on, set_notch_off, notchf, set_notchf, notchb, set_notchb,
@@ -144,10 +145,22 @@ end
 mod_on(piezoport::SerialPort) = write(piezoport, "modon,1" * ENTER)
 mod_off(piezoport::SerialPort) = write(piezoport, "modon,0" * ENTER)
 
+function monsrc(piezoport::SerialPort)
+    write(piezoport, "monsrc" * ENTER)
+    return parse(Int, listen(piezoport; prefix="monsrc"))
+end
+
+#0 = position in closed loop (default).  6 = position in open loop (requires rescale). See manual for the rest.
+function set_monsrc(piezoport::SerialPort, src_id::Int)
+    @assert src_id >= 0 && src_id <= 6
+    write(piezoport, "monsrc,$src_id " * ENTER)
+end
+
 function position(piezoport::SerialPort)
     write(piezoport, "mess" * ENTER)
     return listen(piezoport; prefix="mess")
 end
+
 #Note that tp should be in microns when in closed-loop mode and in volts (-20.0 to 130.0) when in open-loop mode
 function set_position(piezoport::SerialPort, p::Float64)
     tp = trunc(p, 3)
