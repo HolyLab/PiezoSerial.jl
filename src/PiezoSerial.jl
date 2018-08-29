@@ -14,6 +14,7 @@ export find_piezo_serial,
         runtime_minutes,
         accepts_mod, mod_on, mod_off,
         monsrc, set_monsrc,
+        is_fan_on, is_fan_off, set_fan_on, set_fan_off,
         position, set_position,
         is_open_loop, is_closed_loop, set_closed_loop, set_open_loop,
         is_notch_on, is_notch_off, set_notch_on, set_notch_off, notchf, set_notchf, notchb, set_notchb,
@@ -144,6 +145,31 @@ function accepts_mod(piezoport::SerialPort)
 end
 mod_on(piezoport::SerialPort) = write(piezoport, "modon,1" * ENTER)
 mod_off(piezoport::SerialPort) = write(piezoport, "modon,0" * ENTER)
+
+is_fan_off(piezoport::SerialPort) = status_register(piezoport)[16] == '0'
+is_fan_on(piezoport::SerialPort) = !is_fan_off(piezoport)
+
+function set_fan_on(piezoport::SerialPort)
+    if is_fan_on(piezoport)
+        warn("Fan is already on")
+    end
+    write(piezoport, "fan,1" * ENTER)
+    sleep(0.1)
+    if !is_fan_on(piezoport)
+        error("Failed to turn on fan")
+    end
+end
+
+function set_fan_off(piezoport::SerialPort)
+    if is_fan_off(piezoport)
+        warn("Fan is already off")
+    end
+    write(piezoport, "fan,0" * ENTER)
+    sleep(0.1)
+    if !is_fan_off(piezoport)
+        error("Failed to turn off fan")
+    end
+end
 
 function monsrc(piezoport::SerialPort)
     write(piezoport, "monsrc" * ENTER)
