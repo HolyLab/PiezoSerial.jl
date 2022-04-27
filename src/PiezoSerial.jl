@@ -1,12 +1,10 @@
-__precompile__()
-
 module PiezoSerial
 
-import Base.listen
 import Base.position
 
 using SerialPorts
 using ImagineHardware
+using Sockets
 
 export find_piezo_serial,
         kp, ki, kd, set_kp, set_ki, set_kd,
@@ -84,7 +82,7 @@ function wait_available(p::SerialPort, timeout = 0.8) #timeout in seconds
     error("Timed out")
 end
 
-function listen(p::SerialPort, timeout = 1.0; prefix = "") #timeout in seconds
+function Sockets.listen(p::SerialPort, timeout = 1.0; prefix = "") #timeout in seconds
 	resp = listen_raw(p, timeout)
 	temp =  split(resp, ENTER)
 	if length(temp) !=2
