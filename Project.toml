@@ -1,5 +1,6 @@
 name = "PiezoSerial"
 uuid = "15f47f3c-50af-56fd-b121-9c5737f4ef3a"
+version = "0.2.0"
 
 [deps]
 ImagineHardware = "75ec5d3c-0ed3-11e9-24c7-e530058603ef"
